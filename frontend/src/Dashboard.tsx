@@ -6,19 +6,9 @@ import {
 } from "recharts";
 import API from "./api";
 import styles from "./Dashboard.module.css";
+import CategoryView from "./CategoryView";
 import { useTheme } from "./ThemeContext";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-interface Transaction {
-  id: number;
-  type: "income" | "expense";
-  amount: string;
-  category: string;
-  description: string;
-  date: string;
-  created_at: string;
-  updated_at: string;
-}
+import type { Transaction } from "./types"; 
 
 interface FormState {
   type: "income" | "expense";
@@ -34,7 +24,6 @@ interface FormErrors {
   [key: string]: string | string[] | undefined;
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
 const CATEGORIES = [
   { value: "food",       label: "Food & Dining",   icon: "🍜" },
   { value: "transport",  label: "Transport",        icon: "🚌" },
@@ -102,7 +91,6 @@ const CustomTooltip = ({ active, payload, label }: TTProps) => {
   );
 };
 
-// ─── Step Modal (3-step wizard) ───────────────────────────────────────────────
 const STEP_META = [
   { label: "Amount",   icon: "💰", hint: "How much and what type?" },
   { label: "Category", icon: "🏷️", hint: "Where did it go?" },
@@ -120,7 +108,7 @@ interface StepModalProps {
 }
 
 function StepModal({ editTarget, form, setForm, formErrors, saving, onSave, onClose }: StepModalProps) {
-  const [step, setStep]         = useState(0);
+  const [step, setStep]           = useState(0);
   const [stepError, setStepError] = useState("");
   const [direction, setDirection] = useState<"fwd" | "bwd">("fwd");
   const amountRef = useRef<HTMLInputElement>(null);
@@ -188,7 +176,6 @@ function StepModal({ editTarget, form, setForm, formErrors, saving, onSave, onCl
           ))}
         </div>
 
-        {/* ── Step content ── */}
         <div className={styles.modalBody}>
           {(stepError || formErrors.non_field) && (
             <div className={styles.formError}>{stepError || formErrors.non_field}</div>
@@ -323,7 +310,6 @@ function StepModal({ editTarget, form, setForm, formErrors, saving, onSave, onCl
   );
 }
 
-// ─── Dashboard ────────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
@@ -336,11 +322,22 @@ export default function Dashboard() {
   const [formErrors, setFormErrors]     = useState<FormErrors>({});
   const [saving, setSaving]             = useState<boolean>(false);
   const [deleteId, setDeleteId]         = useState<number | null>(null);
+  //  Persist view + filters across refresh
+  const [view, setView] = useState<"table" | "category">(() =>
+    (sessionStorage.getItem("clarity:view") as "table" | "category") ?? "table"
+  );
 
-  const [filterType, setFilterType]         = useState<string>("");
-  const [filterCategory, setFilterCategory] = useState<string>("");
-  const [filterFrom, setFilterFrom]         = useState<string>("");
-  const [filterTo, setFilterTo]             = useState<string>("");
+  const [filterType, setFilterType]         = useState<string>(() => sessionStorage.getItem("clarity:filterType")     ?? "");
+  const [filterCategory, setFilterCategory] = useState<string>(() => sessionStorage.getItem("clarity:filterCategory") ?? "");
+  const [filterFrom, setFilterFrom]         = useState<string>(() => sessionStorage.getItem("clarity:filterFrom")     ?? "");
+  const [filterTo, setFilterTo]             = useState<string>(() => sessionStorage.getItem("clarity:filterTo")       ?? "");
+
+  // Sync every filter/view change to sessionStorage
+  useEffect(() => { sessionStorage.setItem("clarity:view",           view);           }, [view]);
+  useEffect(() => { sessionStorage.setItem("clarity:filterType",     filterType);     }, [filterType]);
+  useEffect(() => { sessionStorage.setItem("clarity:filterCategory", filterCategory); }, [filterCategory]);
+  useEffect(() => { sessionStorage.setItem("clarity:filterFrom",     filterFrom);     }, [filterFrom]);
+  useEffect(() => { sessionStorage.setItem("clarity:filterTo",       filterTo);       }, [filterTo]);
 
   const fetchTransactions = useCallback(async () => {
     setLoading(true);
@@ -364,7 +361,13 @@ export default function Dashboard() {
     navigate("/login");
   };
 
-  const openAdd = () => { setEditTarget(null); setForm(EMPTY_FORM); setFormErrors({}); setShowModal(true); };
+  const openAdd = () => {
+    setEditTarget(null);
+    setForm(EMPTY_FORM);
+    setFormErrors({});
+    setShowModal(true);
+  };
+
   const openEdit = (tx: Transaction) => {
     setEditTarget(tx);
     setForm({ type: tx.type, amount: tx.amount, category: tx.category, description: tx.description, date: tx.date });
@@ -372,7 +375,6 @@ export default function Dashboard() {
     setShowModal(true);
   };
 
-  // Called by StepModal directly (no form submit event needed)
   const handleSave = async () => {
     setSaving(true);
     setFormErrors({});
@@ -412,6 +414,14 @@ export default function Dashboard() {
           <span className={styles.brandSub}>Personal Finance</span>
         </div>
         <div className={styles.headerActions}>
+          <div className={styles.viewToggle}>
+            <button className={`${styles.viewBtn} ${view === "table" ? styles.viewBtnActive : ""}`} onClick={() => setView("table")} title="Table view">
+              ☰
+            </button>
+            <button className={`${styles.viewBtn} ${view === "category" ? styles.viewBtnActive : ""}`} onClick={() => setView("category")} title="Category view">
+              ⊞
+            </button>
+          </div>
           <button className={styles.addBtn} onClick={openAdd}>+ Add Transaction</button>
           <button className={styles.themeBtn} onClick={toggleTheme} aria-label="Toggle theme">{isDark ? "☀️" : "🌙"}</button>
           <button className={styles.logoutBtn} onClick={handleLogout}>Logout</button>
@@ -503,13 +513,19 @@ export default function Dashboard() {
             <input type="date" className={styles.filterInput} value={filterTo} onChange={e => setFilterTo(e.target.value)} />
           </div>
           {(filterType || filterCategory || filterFrom || filterTo) && (
-            <button className={styles.clearBtn} onClick={() => { setFilterType(""); setFilterCategory(""); setFilterFrom(""); setFilterTo(""); }}>
+            <button className={styles.clearBtn} onClick={() => {
+                setFilterType(""); setFilterCategory(""); setFilterFrom(""); setFilterTo("");
+                sessionStorage.removeItem("clarity:filterType");
+                sessionStorage.removeItem("clarity:filterCategory");
+                sessionStorage.removeItem("clarity:filterFrom");
+                sessionStorage.removeItem("clarity:filterTo");
+              }}>
               Clear filters
             </button>
           )}
         </div>
 
-        {/* Table */}
+        {/* Table / Category view */}
         {loading ? (
           <div className={styles.loadingWrap}><span className={styles.spinner} /><span>Loading…</span></div>
         ) : transactions.length === 0 ? (
@@ -518,6 +534,8 @@ export default function Dashboard() {
             <p>No transactions found.</p>
             <button className={styles.addBtn} onClick={openAdd}>Add your first transaction</button>
           </div>
+        ) : view === "category" ? (
+          <CategoryView transactions={transactions} onEdit={openEdit} onDelete={(id) => setDeleteId(id)} />
         ) : (
           <div className={styles.tableWrap}>
             <table className={styles.table}>

@@ -1,0 +1,192 @@
+/* ─── Root ───────────────────────────────────────────────────────────────── */
+.root {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* ─── Tab Bar ────────────────────────────────────────────────────────────── */
+.tabBar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-family: 'Syne', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 1rem;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+.tab:hover { color: var(--text); }
+.tabActiveExpense { color: var(--red)   !important; border-bottom-color: var(--red)   !important; }
+.tabActiveIncome  { color: var(--green) !important; border-bottom-color: var(--green) !important; }
+
+/* ─── Stats Bar ──────────────────────────────────────────────────────────── */
+.statsBar {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  padding: 0.9rem 1.4rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+}
+.statItem  { display: flex; flex-direction: column; gap: 0.15rem; }
+.statLabel { font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.statValue { font-family: 'JetBrains Mono', monospace; font-size: 0.95rem; font-weight: 500; color: var(--text); }
+.dragHint  { margin-left: auto; display: flex; align-items: center; gap: 0.4rem; font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--muted); letter-spacing: 0.05em; user-select: none; }
+
+/* ─── Colors ─────────────────────────────────────────────────────────────── */
+.incomeAmt  { color: var(--green); }
+.expenseAmt { color: var(--red);   }
+
+/* ─── Sections ───────────────────────────────────────────────────────────── */
+.sections { display: flex; flex-direction: column; }
+
+.section {
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  transition: box-shadow 0.2s;
+}
+.section:last-child { border-bottom: none; }
+
+/* Overlay ghost while dragging */
+.sectionOverlay {
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  opacity: 0.95;
+}
+
+/* ─── Section Header ─────────────────────────────────────────────────────── */
+/* The header is a flex row: [dragHandle] [sectionToggle fills rest] */
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+/* ── Drag handle on the LEFT of the header ── */
+.dragHandle {
+  /* generous hit area */
+  width: 44px;
+  height: 52px;
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: none;
+  border: none;
+  border-right: 1px solid var(--border);
+  color: var(--muted);
+  opacity: 0.45;
+
+  /* CRITICAL for drag to work */
+  cursor: grab;
+  touch-action: none;
+
+  transition: opacity 0.2s, background 0.2s, color 0.2s;
+}
+.dragHandle:hover  { opacity: 1; background: var(--surface2); color: var(--text); }
+.dragHandle:active { cursor: grabbing; opacity: 1; }
+
+/* ── Toggle button fills the rest of the header ── */
+.sectionToggle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 1.2rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+.sectionToggle:hover { background: var(--surface2); }
+
+.sectionLeft  { display: flex; align-items: center; gap: 0.9rem; }
+.sectionRight { display: flex; align-items: center; gap: 0.9rem; }
+
+.sectionIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.sectionName  { display: block; font-size: 0.95rem; font-weight: 600; color: var(--text); text-transform: capitalize; margin-bottom: 0.1rem; }
+.sectionCount { display: block; font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; color: var(--muted); letter-spacing: 0.05em; }
+.sectionTotal { font-family: 'JetBrains Mono', monospace; font-size: 0.95rem; font-weight: 500; }
+
+.chevron          { color: var(--muted); font-size: 1.2rem; line-height: 1; transition: transform 0.25s; display: inline-block; transform: rotate(90deg); }
+.chevronCollapsed { transform: rotate(0deg); }
+
+/* ─── Section Body ───────────────────────────────────────────────────────── */
+.sectionBody {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+}
+
+/* ─── Transaction Row (plain, no drag) ───────────────────────────────────── */
+.txRow {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.85rem 1.2rem 0.85rem 1.4rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  transition: background 0.15s;
+}
+.txRow:last-child { border-bottom: none; }
+.txRow:hover      { background: var(--surface2); }
+
+.txInfo   { display: flex; flex-direction: column; gap: 0.15rem; flex: 1; min-width: 0; }
+.txDesc   { font-size: 0.88rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.txDate   { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--muted); }
+.noDesc   { color: var(--muted); font-style: italic; }
+.txAmount { font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; font-weight: 500; white-space: nowrap; margin-left: auto; }
+.txActions { display: flex; gap: 0.4rem; flex-shrink: 0; }
+
+/* ─── Buttons ────────────────────────────────────────────────────────────── */
+.editBtn {
+  background: none; border: 1px solid var(--border); border-radius: 6px;
+  color: var(--muted); font-family: 'Syne', sans-serif; font-size: 0.75rem;
+  padding: 0.28rem 0.65rem; cursor: pointer; transition: color 0.2s, border-color 0.2s;
+}
+.editBtn:hover { color: var(--accent); border-color: var(--accent); }
+
+.deleteBtn {
+  background: none; border: 1px solid var(--border); border-radius: 6px;
+  color: var(--muted); font-family: 'Syne', sans-serif; font-size: 0.75rem;
+  padding: 0.28rem 0.65rem; cursor: pointer; transition: color 0.2s, border-color 0.2s;
+}
+.deleteBtn:hover { color: var(--red); border-color: var(--red); }
+
+/* ─── Empty ──────────────────────────────────────────────────────────────── */
+.empty      { display: flex; flex-direction: column; align-items: center; gap: 0.8rem; padding: 4rem 2rem; color: var(--muted); text-align: center; font-size: 0.88rem; }
+.emptyIcon  { font-size: 2.5rem; }
+
+/* ─── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .statsBar  { gap: 1rem; flex-wrap: wrap; }
+  .dragHint  { display: none; }
+  .txActions { display: none; }
+}
