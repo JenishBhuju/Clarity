@@ -20,7 +20,7 @@ from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
-from .views import ProtectedView, RegisterView
+from .views import RegisterView, TransactionListCreateView, TransactionDetailView, DashboardView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -33,5 +33,10 @@ urlpatterns = [
     # Refresh token
     path('api/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     
-    path('api/protected/', ProtectedView.as_view()),
+    # Transactions CRUD
+    path("api/transactions/", TransactionListCreateView.as_view(), name="transaction-list"),
+    path("api/transactions/<int:pk>/", TransactionDetailView.as_view(), name="transaction-detail"),
+
+    # Dashboard
+     path("api/dashboard/", DashboardView.as_view(), name="dashboard"),
 ]

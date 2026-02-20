@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
+from .models import Transaction
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -33,3 +34,17 @@ class RegisterSerializer(serializers.ModelSerializer):
             password=validated_data["password"],
         )
         return user
+
+class TransactionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = Transaction
+        fields = [
+            "id", "type", "amount", "category",
+            "description", "date", "created_at", "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def validate_amount(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Amount must be greater than zero.")
+        return value
