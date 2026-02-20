@@ -8,7 +8,230 @@ import API from "./api";
 import styles from "./Dashboard.module.css";
 import CategoryView from "./CategoryView";
 import { useTheme } from "./ThemeContext";
-import type { Transaction } from "./types"; 
+import type { Transaction } from "./types";
+
+function spawnConfetti() {
+  const canvas = document.createElement("canvas");
+  canvas.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:9999;width:100%;height:100%";
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext("2d")!;
+
+  const COLORS = ["#5c7cfa","#2dd88a","#ff5a6e","#f59e0b","#a78bfa","#fb923c","#60a5fa","#facc15"];
+  const pieces = Array.from({ length: 160 }, () => ({
+    x: Math.random() * canvas.width,
+    y: -20 - Math.random() * 200,
+    r: 5 + Math.random() * 7,
+    color: COLORS[Math.floor(Math.random() * COLORS.length)],
+    speed: 2 + Math.random() * 4,
+    angle: Math.random() * Math.PI * 2,
+    spin: (Math.random() - 0.5) * 0.2,
+    drift: (Math.random() - 0.5) * 2,
+    shape: Math.random() > 0.5 ? "rect" : "circle",
+    w: 8 + Math.random() * 10,
+    h: 4 + Math.random() * 6,
+  }));
+
+  let frame = 0;
+  const maxFrames = 220;
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const p of pieces) {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.angle);
+      ctx.globalAlpha = Math.max(0, 1 - frame / maxFrames);
+      ctx.fillStyle = p.color;
+      if (p.shape === "rect") ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      else { ctx.beginPath(); ctx.arc(0, 0, p.r, 0, Math.PI * 2); ctx.fill(); }
+      ctx.restore();
+      p.y += p.speed;
+      p.x += p.drift;
+      p.angle += p.spin;
+    }
+    frame++;
+    if (frame < maxFrames) requestAnimationFrame(draw);
+    else canvas.remove();
+  }
+  draw();
+}
+
+const SAVING_MILESTONES = [100, 250, 500, 1000, 2500, 5000, 10000];
+
+function useMilestones(net: number) {
+  const [celebrated, setCelebrated]         = useState<number[]>([]);
+  const [toastMilestone, setToastMilestone] = useState<number | null>(null);
+  const prevNetRef = useRef<number>(net);
+
+  useEffect(() => {
+    const prevNet = prevNetRef.current;
+    prevNetRef.current = net;
+    if (net <= prevNet) return;
+
+    for (const m of SAVING_MILESTONES) {
+      if (prevNet < m && net >= m && !celebrated.includes(m)) {
+        setCelebrated(c => [...c, m]);
+        setToastMilestone(m);
+        spawnConfetti();
+        const t = setTimeout(() => setToastMilestone(null), 5000);
+        return () => clearTimeout(t);
+      }
+    }
+  }, [net, celebrated]);
+
+  return { toastMilestone, dismissToast: () => setToastMilestone(null) };
+}
+
+interface SpendingLimits { daily: number; weekly: number; }
+
+function useSpendingLimits(transactions: Transaction[]) {
+  const [limits, setLimits] = useState<SpendingLimits>(() => {
+    try {
+      const saved = localStorage.getItem("clarity:limits");
+      return saved ? JSON.parse(saved) : { daily: 0, weekly: 0 };
+    } catch { return { daily: 0, weekly: 0 }; }
+  });
+
+  const saveLimits = (l: SpendingLimits) => {
+    setLimits(l);
+    localStorage.setItem("clarity:limits", JSON.stringify(l));
+  };
+
+  const today = new Date().toISOString().split("T")[0];
+  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+
+  const dailySpend = transactions
+    .filter(t => t.type === "expense" && t.date === today)
+    .reduce((s, t) => s + parseFloat(t.amount), 0);
+
+  const weeklySpend = transactions
+    .filter(t => t.type === "expense" && t.date >= weekAgo)
+    .reduce((s, t) => s + parseFloat(t.amount), 0);
+
+  const dailyPct  = limits.daily  > 0 ? (dailySpend  / limits.daily)  * 100 : 0;
+  const weeklyPct = limits.weekly > 0 ? (weeklySpend / limits.weekly) * 100 : 0;
+
+  return { limits, saveLimits, dailySpend, weeklySpend, dailyPct, weeklyPct };
+}
+
+interface LimitBannerProps {
+  label: string;
+  spent: number;
+  limit: number;
+  pct: number;
+}
+
+function LimitBanner({ label, spent, limit, pct }: LimitBannerProps) {
+  const [dismissed, setDismissed] = useState(false);
+  if (limit <= 0 || pct < 80 || dismissed) return null;
+
+  const over    = pct >= 100;
+  const warning = pct >= 80 && pct < 100;
+
+  return (
+    <div className={`${styles.limitBanner} ${over ? styles.limitBannerOver : styles.limitBannerWarn}`}>
+      <div className={styles.limitBannerLeft}>
+        <span className={styles.limitBannerIcon}>{over ? "🚨" : "⚠️"}</span>
+        <div>
+          <p className={styles.limitBannerTitle}>
+            {over ? `${label} limit exceeded!` : `${label} limit at ${Math.round(pct)}%`}
+          </p>
+          <p className={styles.limitBannerSub}>
+            {fmt(spent)} spent{over ? " — " : " of "}{fmt(limit)}{over ? " over budget" : ""}
+          </p>
+        </div>
+      </div>
+      <div className={styles.limitBannerRight}>
+        <div className={styles.limitBarTrack}>
+          <div
+            className={`${styles.limitBarFill} ${over ? styles.limitBarOver : warning ? styles.limitBarWarn : ""}`}
+            style={{ width: `${Math.min(pct, 100)}%` }}
+          />
+        </div>
+        <button className={styles.limitDismiss} onClick={() => setDismissed(true)}>✕</button>
+      </div>
+    </div>
+  );
+}
+
+interface LimitModalProps {
+  limits: SpendingLimits;
+  onSave: (l: SpendingLimits) => void;
+  onClose: () => void;
+}
+
+function LimitModal({ limits, onSave, onClose }: LimitModalProps) {
+  const [daily,  setDaily]  = useState(limits.daily  > 0 ? String(limits.daily)  : "");
+  const [weekly, setWeekly] = useState(limits.weekly > 0 ? String(limits.weekly) : "");
+
+  const save = () => {
+    onSave({ daily: parseFloat(daily) || 0, weekly: parseFloat(weekly) || 0 });
+    onClose();
+  };
+
+  return (
+    <div className={styles.overlay} onClick={onClose}>
+      <div className={styles.modal} style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
+        <div className={styles.modalHeader}>
+          <div>
+            <h2 className={styles.modalTitle}>Spending Limits</h2>
+            <p className={styles.modalStepLabel}>⚠️ Set daily & weekly budgets</p>
+          </div>
+          <button className={styles.modalClose} onClick={onClose}>✕</button>
+        </div>
+        <div className={styles.modalBody} style={{ minHeight: "auto", gap: "1.2rem" }}>
+          <div className={styles.formField}>
+            <label className={styles.formLabel}>Daily Limit</label>
+            <div className={styles.amountWrap} style={{ padding: "0.7rem 1rem" }}>
+              <span className={styles.currencySymbol} style={{ fontSize: "1.2rem" }}>$</span>
+              <input
+                type="number" min="0" step="1" placeholder="e.g. 50"
+                className={styles.amountInput} style={{ fontSize: "1.3rem" }}
+                value={daily} onChange={e => setDaily(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className={styles.formField}>
+            <label className={styles.formLabel}>Weekly Limit</label>
+            <div className={styles.amountWrap} style={{ padding: "0.7rem 1rem" }}>
+              <span className={styles.currencySymbol} style={{ fontSize: "1.2rem" }}>$</span>
+              <input
+                type="number" min="0" step="1" placeholder="e.g. 300"
+                className={styles.amountInput} style={{ fontSize: "1.3rem" }}
+                value={weekly} onChange={e => setWeekly(e.target.value)}
+              />
+            </div>
+          </div>
+          <p style={{ fontSize: "0.75rem", color: "var(--muted)", fontFamily: "'JetBrains Mono', monospace" }}>
+            Leave blank or set to 0 to disable a limit. You'll be warned at 80% and 100%.
+          </p>
+        </div>
+        <div className={styles.modalFooter}>
+          <button className={styles.cancelBtn} onClick={onClose}>Cancel</button>
+          <button className={styles.saveBtn} onClick={save}>Save Limits</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MilestoneToast({ amount, onDismiss }: { amount: number; onDismiss: () => void }) {
+  return (
+    <div className={styles.milestoneToast} onClick={onDismiss}>
+      <div className={styles.milestoneToastInner}>
+        <span className={styles.milestoneTrophy}>🏆</span>
+        <div>
+          <p className={styles.milestoneTitle}>Savings Milestone!</p>
+          <p className={styles.milestoneSub}>You've reached {fmt(amount)} in net savings 🎉</p>
+        </div>
+        <button className={styles.milestoneDismiss}>✕</button>
+      </div>
+      <div className={styles.milestoneProgress} />
+    </div>
+  );
+}
 
 interface FormState {
   type: "income" | "expense";
@@ -149,8 +372,6 @@ function StepModal({ editTarget, form, setForm, formErrors, saving, onSave, onCl
   return (
     <div className={styles.overlay} onClick={onClose} onKeyDown={handleKeyDown}>
       <div className={styles.modal} onClick={e => e.stopPropagation()}>
-
-        {/* ── Header ── */}
         <div className={styles.modalHeader}>
           <div>
             <h2 className={styles.modalTitle}>
@@ -163,7 +384,6 @@ function StepModal({ editTarget, form, setForm, formErrors, saving, onSave, onCl
           <button className={styles.modalClose} onClick={onClose} aria-label="Close">✕</button>
         </div>
 
-        {/* ── Progress ── */}
         <div className={styles.progressTrack}>
           <div className={styles.progressFill} style={{ width: `${((step + 1) / STEP_META.length) * 100}%` }} />
         </div>
@@ -181,56 +401,31 @@ function StepModal({ editTarget, form, setForm, formErrors, saving, onSave, onCl
             <div className={styles.formError}>{stepError || formErrors.non_field}</div>
           )}
 
-          {/* Step 1 — Type & Amount */}
           {step === 0 && (
             <div className={styles.stepContent} data-dir={direction}>
               <div className={styles.typeToggle}>
-                <button
-                  type="button"
-                  className={`${styles.typeBtn} ${form.type === "expense" ? styles.typeBtnExpense : ""}`}
-                  onClick={() => setForm(f => ({ ...f, type: "expense" }))}
-                >
+                <button type="button" className={`${styles.typeBtn} ${form.type === "expense" ? styles.typeBtnExpense : ""}`} onClick={() => setForm(f => ({ ...f, type: "expense" }))}>
                   <span className={styles.typeBtnArrow}>↓</span>
                   <span className={styles.typeBtnText}>Expense</span>
                 </button>
-                <button
-                  type="button"
-                  className={`${styles.typeBtn} ${form.type === "income" ? styles.typeBtnIncome : ""}`}
-                  onClick={() => setForm(f => ({ ...f, type: "income" }))}
-                >
+                <button type="button" className={`${styles.typeBtn} ${form.type === "income" ? styles.typeBtnIncome : ""}`} onClick={() => setForm(f => ({ ...f, type: "income" }))}>
                   <span className={styles.typeBtnArrow}>↑</span>
                   <span className={styles.typeBtnText}>Income</span>
                 </button>
               </div>
-
               <div className={styles.amountWrap}>
                 <span className={styles.currencySymbol}>$</span>
-                <input
-                  ref={amountRef}
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  className={styles.amountInput}
-                  placeholder="0.00"
-                  value={form.amount}
-                  onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
-                />
+                <input ref={amountRef} type="number" step="0.01" min="0.01" className={styles.amountInput} placeholder="0.00" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
               </div>
               {formErrors.amount && <span className={styles.fieldErr}>{formErrors.amount[0]}</span>}
             </div>
           )}
 
-          {/* Step 2 — Category */}
           {step === 1 && (
             <div className={styles.stepContent} data-dir={direction}>
               <div className={styles.categoryGrid}>
                 {CATEGORIES.map(c => (
-                  <button
-                    key={c.value}
-                    type="button"
-                    className={`${styles.categoryTile} ${form.category === c.value ? styles.categoryTileActive : ""}`}
-                    onClick={() => { setForm(f => ({ ...f, category: c.value })); setStepError(""); }}
-                  >
+                  <button key={c.value} type="button" className={`${styles.categoryTile} ${form.category === c.value ? styles.categoryTileActive : ""}`} onClick={() => { setForm(f => ({ ...f, category: c.value })); setStepError(""); }}>
                     <span className={styles.categoryTileIcon}>{c.icon}</span>
                     <span className={styles.categoryTileLabel}>{c.label}</span>
                   </button>
@@ -239,65 +434,35 @@ function StepModal({ editTarget, form, setForm, formErrors, saving, onSave, onCl
             </div>
           )}
 
-          {/* Step 3 — Details */}
           {step === 2 && (
             <div className={styles.stepContent} data-dir={direction}>
-              {/* Summary pill */}
               <div className={styles.summaryPill}>
                 <span className={form.type === "income" ? styles.incomeAmt : styles.expenseAmt}>
                   {form.type === "income" ? "↑" : "↓"} {fmt(parseFloat(form.amount) || 0)}
                 </span>
                 <span className={styles.pillDivider}>·</span>
-                <span className={styles.pillCategory}>
-                  {CATEGORY_ICONS[form.category] ?? "📌"} {form.category}
-                </span>
+                <span className={styles.pillCategory}>{CATEGORY_ICONS[form.category] ?? "📌"} {form.category}</span>
               </div>
-
               <div className={styles.detailsFields}>
                 <div className={styles.formField}>
-                  <label className={styles.formLabel}>
-                    Description
-                    <span className={styles.optional}> — optional</span>
-                  </label>
-                  <input
-                    ref={descRef}
-                    type="text"
-                    className={styles.formInput}
-                    placeholder="What was this for?"
-                    value={form.description}
-                    onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                  />
+                  <label className={styles.formLabel}>Description<span className={styles.optional}> — optional</span></label>
+                  <input ref={descRef} type="text" className={styles.formInput} placeholder="What was this for?" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
                 </div>
-
                 <div className={styles.formField}>
                   <label className={styles.formLabel}>Date</label>
-                  <input
-                    type="date"
-                    className={styles.formInput}
-                    value={form.date}
-                    onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
-                    required
-                  />
+                  <input type="date" className={styles.formInput} value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} required />
                 </div>
               </div>
             </div>
           )}
         </div>
 
-        {/* ── Footer navigation ── */}
         <div className={styles.modalFooter}>
-          <button
-            type="button"
-            className={styles.cancelBtn}
-            onClick={step === 0 ? onClose : goBack}
-          >
+          <button type="button" className={styles.cancelBtn} onClick={step === 0 ? onClose : goBack}>
             {step === 0 ? "Cancel" : "← Back"}
           </button>
-
           {step < STEP_META.length - 1 ? (
-            <button type="button" className={styles.saveBtn} onClick={goNext}>
-              Next →
-            </button>
+            <button type="button" className={styles.saveBtn} onClick={goNext}>Next →</button>
           ) : (
             <button type="button" className={styles.saveBtn} disabled={saving} onClick={onSave}>
               {saving && <span className={styles.btnSpinner} />}
@@ -317,22 +482,21 @@ export default function Dashboard() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading]           = useState<boolean>(true);
   const [showModal, setShowModal]       = useState<boolean>(false);
+  const [showLimitModal, setShowLimitModal] = useState(false);
   const [editTarget, setEditTarget]     = useState<Transaction | null>(null);
   const [form, setForm]                 = useState<FormState>(EMPTY_FORM);
   const [formErrors, setFormErrors]     = useState<FormErrors>({});
   const [saving, setSaving]             = useState<boolean>(false);
   const [deleteId, setDeleteId]         = useState<number | null>(null);
-  //  Persist view + filters across refresh
+
   const [view, setView] = useState<"table" | "category">(() =>
     (sessionStorage.getItem("clarity:view") as "table" | "category") ?? "table"
   );
-
   const [filterType, setFilterType]         = useState<string>(() => sessionStorage.getItem("clarity:filterType")     ?? "");
   const [filterCategory, setFilterCategory] = useState<string>(() => sessionStorage.getItem("clarity:filterCategory") ?? "");
   const [filterFrom, setFilterFrom]         = useState<string>(() => sessionStorage.getItem("clarity:filterFrom")     ?? "");
   const [filterTo, setFilterTo]             = useState<string>(() => sessionStorage.getItem("clarity:filterTo")       ?? "");
 
-  // Sync every filter/view change to sessionStorage
   useEffect(() => { sessionStorage.setItem("clarity:view",           view);           }, [view]);
   useEffect(() => { sessionStorage.setItem("clarity:filterType",     filterType);     }, [filterType]);
   useEffect(() => { sessionStorage.setItem("clarity:filterCategory", filterCategory); }, [filterCategory]);
@@ -354,6 +518,23 @@ export default function Dashboard() {
   }, [filterType, filterCategory, filterFrom, filterTo, navigate]);
 
   useEffect(() => { void fetchTransactions(); }, [fetchTransactions]);
+
+  const totalIncome  = transactions.filter(t => t.type === "income").reduce((s, t) => s + parseFloat(t.amount), 0);
+  const totalExpense = transactions.filter(t => t.type === "expense").reduce((s, t) => s + parseFloat(t.amount), 0);
+  const net          = totalIncome - totalExpense;
+  const areaData     = buildAreaData(transactions);
+  const pieData      = buildPieData(transactions);
+  const isDark       = theme === "dark";
+  const gridColor    = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)";
+  const axisColor    = isDark ? "rgba(255,255,255,0.3)"  : "rgba(0,0,0,0.35)";
+
+  const { toastMilestone, dismissToast } = useMilestones(net);
+  const { limits, saveLimits, dailySpend, weeklySpend, dailyPct, weeklyPct } =
+    useSpendingLimits(transactions);
+
+  // Next milestone
+  const nextMilestone = SAVING_MILESTONES.find(m => m > net);
+  const nextPct = nextMilestone ? Math.min((net / nextMilestone) * 100, 100) : 100;
 
   const handleLogout = () => {
     localStorage.removeItem("access");
@@ -397,17 +578,13 @@ export default function Dashboard() {
     } catch { alert("Failed to delete."); }
   };
 
-  const totalIncome  = transactions.filter(t => t.type === "income").reduce((s, t) => s + parseFloat(t.amount), 0);
-  const totalExpense = transactions.filter(t => t.type === "expense").reduce((s, t) => s + parseFloat(t.amount), 0);
-  const net          = totalIncome - totalExpense;
-  const areaData     = buildAreaData(transactions);
-  const pieData      = buildPieData(transactions);
-  const isDark       = theme === "dark";
-  const gridColor    = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)";
-  const axisColor    = isDark ? "rgba(255,255,255,0.3)"  : "rgba(0,0,0,0.35)";
-
   return (
     <div className={styles.page}>
+      {/* ── Milestone toast ── */}
+      {toastMilestone !== null && (
+        <MilestoneToast amount={toastMilestone} onDismiss={dismissToast} />
+      )}
+
       <header className={styles.header}>
         <div className={styles.headerBrand}>
           <span className={styles.brandName}>Clarity</span>
@@ -415,13 +592,10 @@ export default function Dashboard() {
         </div>
         <div className={styles.headerActions}>
           <div className={styles.viewToggle}>
-            <button className={`${styles.viewBtn} ${view === "table" ? styles.viewBtnActive : ""}`} onClick={() => setView("table")} title="Table view">
-              ☰
-            </button>
-            <button className={`${styles.viewBtn} ${view === "category" ? styles.viewBtnActive : ""}`} onClick={() => setView("category")} title="Category view">
-              ⊞
-            </button>
+            <button className={`${styles.viewBtn} ${view === "table" ? styles.viewBtnActive : ""}`} onClick={() => setView("table")} title="Table view">☰</button>
+            <button className={`${styles.viewBtn} ${view === "category" ? styles.viewBtnActive : ""}`} onClick={() => setView("category")} title="Category view">⊞</button>
           </div>
+          <button className={styles.limitSettingsBtn} onClick={() => setShowLimitModal(true)} title="Spending limits">🎯 Limits</button>
           <button className={styles.addBtn} onClick={openAdd}>+ Add Transaction</button>
           <button className={styles.themeBtn} onClick={toggleTheme} aria-label="Toggle theme">{isDark ? "☀️" : "🌙"}</button>
           <button className={styles.logoutBtn} onClick={handleLogout}>Logout</button>
@@ -429,7 +603,11 @@ export default function Dashboard() {
       </header>
 
       <main className={styles.main}>
-        {/* Summary */}
+        {/* ── Spending limit warnings ── */}
+        <LimitBanner label="Daily"  spent={dailySpend}  limit={limits.daily}  pct={dailyPct}  />
+        <LimitBanner label="Weekly" spent={weeklySpend} limit={limits.weekly} pct={weeklyPct} />
+
+        {/* ── Summary ── */}
         <div className={styles.summaryRow}>
           <div className={`${styles.summaryCard} ${styles.incomeCard}`}>
             <span className={styles.summaryLabel}>Total Income</span>
@@ -442,10 +620,24 @@ export default function Dashboard() {
           <div className={`${styles.summaryCard} ${net >= 0 ? styles.netPositive : styles.netNegative}`}>
             <span className={styles.summaryLabel}>Net Balance</span>
             <span className={styles.summaryAmount}>{fmt(net)}</span>
+            {/* ── Next milestone progress ── */}
+            {net > 0 && nextMilestone && (
+              <div className={styles.milestoneRow}>
+                <div className={styles.milestoneBarTrack}>
+                  <div className={styles.milestoneBarFill} style={{ width: `${nextPct}%` }} />
+                </div>
+                <span className={styles.milestoneHint}>
+                  {fmt(nextMilestone - net)} to {fmt(nextMilestone)} milestone
+                </span>
+              </div>
+            )}
+            {net > 0 && !nextMilestone && (
+              <span className={styles.milestoneHint} style={{ color: "var(--green)" }}>🏆 All milestones reached!</span>
+            )}
           </div>
         </div>
 
-        {/* Charts */}
+        {/* ── Charts ── */}
         {transactions.length > 0 && (
           <div className={styles.chartsRow}>
             <div className={styles.chartCard}>
@@ -497,7 +689,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Filters */}
+        {/* ── Filters ── */}
         <div className={styles.filters}>
           <select className={styles.filterSelect} value={filterType} onChange={e => setFilterType(e.target.value)}>
             <option value="">All Types</option>
@@ -514,18 +706,18 @@ export default function Dashboard() {
           </div>
           {(filterType || filterCategory || filterFrom || filterTo) && (
             <button className={styles.clearBtn} onClick={() => {
-                setFilterType(""); setFilterCategory(""); setFilterFrom(""); setFilterTo("");
-                sessionStorage.removeItem("clarity:filterType");
-                sessionStorage.removeItem("clarity:filterCategory");
-                sessionStorage.removeItem("clarity:filterFrom");
-                sessionStorage.removeItem("clarity:filterTo");
-              }}>
+              setFilterType(""); setFilterCategory(""); setFilterFrom(""); setFilterTo("");
+              sessionStorage.removeItem("clarity:filterType");
+              sessionStorage.removeItem("clarity:filterCategory");
+              sessionStorage.removeItem("clarity:filterFrom");
+              sessionStorage.removeItem("clarity:filterTo");
+            }}>
               Clear filters
             </button>
           )}
         </div>
 
-        {/* Table / Category view */}
+        {/* ── Table / Category ── */}
         {loading ? (
           <div className={styles.loadingWrap}><span className={styles.spinner} /><span>Loading…</span></div>
         ) : transactions.length === 0 ? (
@@ -565,15 +757,11 @@ export default function Dashboard() {
       </main>
 
       {showModal && (
-        <StepModal
-          editTarget={editTarget}
-          form={form}
-          setForm={setForm}
-          formErrors={formErrors}
-          saving={saving}
-          onSave={() => { void handleSave(); }}
-          onClose={() => setShowModal(false)}
-        />
+        <StepModal editTarget={editTarget} form={form} setForm={setForm} formErrors={formErrors} saving={saving} onSave={() => { void handleSave(); }} onClose={() => setShowModal(false)} />
+      )}
+
+      {showLimitModal && (
+        <LimitModal limits={limits} onSave={saveLimits} onClose={() => setShowLimitModal(false)} />
       )}
 
       {deleteId !== null && (
