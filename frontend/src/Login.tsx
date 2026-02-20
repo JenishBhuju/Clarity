@@ -3,29 +3,35 @@ import { Link, useNavigate } from "react-router-dom";
 import API from "./api";
 import styles from "./Login.module.css";
 
-function Login() {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+interface LoginResponse {
+  access: string;
+  refresh: string;
+}
+
+export default function Login() {
+  const [username, setUsername]       = useState<string>("");
+  const [password, setPassword]       = useState<string>("");
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [loading, setLoading]         = useState<boolean>(false);
+  const [error, setError]             = useState<string>("");
   const navigate = useNavigate();
 
-  const handleLogin = async (e) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setError("");
     try {
-      const response = await API.post(
+      const response = await API.post<LoginResponse>(
         "login/",
         { username, password },
         { headers: { "Content-Type": "application/json" } }
       );
       localStorage.setItem("access", response.data.access);
       localStorage.setItem("refresh", response.data.refresh);
-      navigate("/dashboard"); // change to your post-login route
-    } catch (err) {
-      console.log(err.response?.data);
+      navigate("/dashboard");
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: unknown } };
+      console.log(error.response?.data);
       setError("Invalid username or password. Please try again.");
     } finally {
       setLoading(false);
@@ -41,7 +47,7 @@ function Login() {
         <div className={styles.brand}>Clarity</div>
         <div className={styles.subtitle}>Sign in to continue</div>
 
-        <form onSubmit={handleLogin} className={styles.form}>
+        <form onSubmit={(e) => { void handleLogin(e); }} className={styles.form}>
           {error && <div className={styles.error}>{error}</div>}
 
           <div className={styles.field}>
@@ -109,5 +115,3 @@ function Login() {
     </div>
   );
 }
-
-export default Login;

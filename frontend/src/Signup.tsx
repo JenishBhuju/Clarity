@@ -3,26 +3,57 @@ import { Link, useNavigate } from "react-router-dom";
 import API from "./api";
 import styles from "./Signup.module.css";
 
-function Signup() {
-  const [form, setForm] = useState({
+interface FormState {
+  username: string;
+  email: string;
+  password: string;
+  confirm_password: string;
+}
+
+interface FormErrors {
+  non_field?: string;
+  username?: string[];
+  email?: string[];
+  password?: string[];
+  confirm_password?: string[];
+  [key: string]: string | string[] | undefined;
+}
+
+const EyeIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+    <circle cx="12" cy="12" r="3"/>
+  </svg>
+);
+
+const EyeOffIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/>
+    <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/>
+    <line x1="1" y1="1" x2="23" y2="23"/>
+  </svg>
+);
+
+export default function Signup() {
+  const [form, setForm] = useState<FormState>({
     username: "",
     email: "",
     password: "",
     confirm_password: "",
   });
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({});
-  const [success, setSuccess] = useState("");
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [showConfirm, setShowConfirm]   = useState<boolean>(false);
+  const [loading, setLoading]           = useState<boolean>(false);
+  const [errors, setErrors]             = useState<FormErrors>({});
+  const [success, setSuccess]           = useState<string>("");
   const navigate = useNavigate();
 
-  const handleChange = (e) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
     setErrors((prev) => ({ ...prev, [e.target.name]: undefined }));
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setErrors({});
@@ -31,11 +62,12 @@ function Signup() {
     try {
       await API.post("register/", form);
       setSuccess("Account created! Redirecting to login…");
-      setTimeout(() => navigate("/login"), 2000);
-    } catch (err) {
-      const data = err.response?.data;
+      setTimeout(() => { navigate("/login"); }, 2000);
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: unknown } };
+      const data = error.response?.data;
       if (data && typeof data === "object") {
-        setErrors(data);
+        setErrors(data as FormErrors);
       } else {
         setErrors({ non_field: "Something went wrong. Please try again." });
       }
@@ -43,21 +75,6 @@ function Signup() {
       setLoading(false);
     }
   };
-
-  const EyeIcon = () => (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-      <circle cx="12" cy="12" r="3"/>
-    </svg>
-  );
-
-  const EyeOffIcon = () => (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/>
-      <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/>
-      <line x1="1" y1="1" x2="23" y2="23"/>
-    </svg>
-  );
 
   return (
     <div className={styles.page}>
@@ -68,10 +85,11 @@ function Signup() {
         <div className={styles.brand}>Clarity</div>
         <div className={styles.subtitle}>Create your account</div>
 
-        <form onSubmit={handleSubmit} className={styles.form}>
+        <form onSubmit={(e) => { void handleSubmit(e); }} className={styles.form}>
           {errors.non_field && <div className={styles.errorBox}>{errors.non_field}</div>}
           {success && <div className={styles.successBox}>{success}</div>}
 
+          {/* Username */}
           <div className={styles.field}>
             <label className={styles.label}>Username</label>
             <input
@@ -87,6 +105,7 @@ function Signup() {
             {errors.username && <span className={styles.fieldError}>{errors.username[0]}</span>}
           </div>
 
+          {/* Email */}
           <div className={styles.field}>
             <label className={styles.label}>Email</label>
             <input
@@ -101,6 +120,7 @@ function Signup() {
             {errors.email && <span className={styles.fieldError}>{errors.email[0]}</span>}
           </div>
 
+          {/* Password */}
           <div className={styles.field}>
             <label className={styles.label}>Password</label>
             <div className={styles.inputWrap}>
@@ -121,6 +141,7 @@ function Signup() {
             {errors.password && <span className={styles.fieldError}>{errors.password[0]}</span>}
           </div>
 
+          {/* Confirm Password */}
           <div className={styles.field}>
             <label className={styles.label}>Confirm Password</label>
             <div className={styles.inputWrap}>
@@ -153,5 +174,3 @@ function Signup() {
     </div>
   );
 }
-
-export default Signup;
