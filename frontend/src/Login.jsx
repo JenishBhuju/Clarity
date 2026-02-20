@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import API from "./api";
 import styles from "./Login.module.css";
 
@@ -8,6 +9,7 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -21,7 +23,7 @@ function Login() {
       );
       localStorage.setItem("access", response.data.access);
       localStorage.setItem("refresh", response.data.refresh);
-      alert("Login successful!");
+      navigate("/dashboard"); // change to your post-login route
     } catch (err) {
       console.log(err.response?.data);
       setError("Invalid username or password. Please try again.");
@@ -96,8 +98,12 @@ function Login() {
         </form>
 
         <div className={styles.divider}>
-          <span>secured connection</span>
+          <span>don't have an account?</span>
         </div>
+        <Link to="/signup" className={styles.footer_link}>
+          Create an account
+        </Link>
+
         <div className={styles.footer}>© 2025 Clarity. All rights reserved.</div>
       </div>
     </div>

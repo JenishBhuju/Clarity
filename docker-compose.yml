@@ -1,9 +1,7 @@
-version: '3.9'
-
 services:
   db:
     image: postgres:15
-    container_name: clarity
+  
     environment:
       POSTGRES_DB: clarity
       POSTGRES_USER: postgres
@@ -15,7 +13,6 @@ services:
 
   backend:
     build: ./backend
-    container_name: clarity
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - ./backend:/app
@@ -28,7 +25,6 @@ services:
 
   frontend:
     build: ./frontend
-    container_name: clarity
     volumes:
       - ./frontend:/app
     ports:
