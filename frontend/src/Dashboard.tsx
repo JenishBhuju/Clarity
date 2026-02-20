@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "./api";
 import styles from "./Dashboard.module.css";
+import { useTheme } from "./ThemeContext";
 
 interface Transaction {
   id: number;
@@ -62,6 +63,7 @@ const EMPTY_FORM: FormState = {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { theme, toggleTheme } = useTheme();
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading]           = useState<boolean>(true);
@@ -72,12 +74,12 @@ export default function Dashboard() {
   const [saving, setSaving]             = useState<boolean>(false);
   const [deleteId, setDeleteId]         = useState<number | null>(null);
 
+  // Filters
   const [filterType, setFilterType]         = useState<string>("");
   const [filterCategory, setFilterCategory] = useState<string>("");
   const [filterFrom, setFilterFrom]         = useState<string>("");
   const [filterTo, setFilterTo]             = useState<string>("");
 
-  // ── Fetch ──────────────────────────────────────────────────────────────────
   const fetchTransactions = useCallback(async () => {
     setLoading(true);
     try {
@@ -171,6 +173,9 @@ export default function Dashboard() {
         </div>
         <div className={styles.headerActions}>
           <button className={styles.addBtn} onClick={openAdd}>+ Add Transaction</button>
+          <button className={styles.themeBtn} onClick={toggleTheme} aria-label="Toggle theme">
+            {theme === "dark" ? "☀️" : "🌙"}
+          </button>
           <button className={styles.logoutBtn} onClick={handleLogout}>Logout</button>
         </div>
       </header>
@@ -272,6 +277,7 @@ export default function Dashboard() {
         )}
       </main>
 
+      {/* Add / Edit Modal */}
       {showModal && (
         <div className={styles.overlay} onClick={() => setShowModal(false)}>
           <div className={styles.modal} onClick={e => e.stopPropagation()}>

@@ -1,9 +1,7 @@
-/* ─── Global reset — required for full-screen layouts ─── */
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=Cormorant+Garamond:wght@300;400;500;600&family=DM+Sans:wght@300;400;500&family=JetBrains+Mono:wght@300;400;500&display=swap');
+
+/* ─── Reset ──────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body, #root {
   height: 100%;
@@ -13,4 +11,49 @@ html, body, #root {
 body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Dark theme (default) ───────────────────────────────────────────────── */
+:root,
+[data-theme="dark"] {
+  --bg:        #0f0f11;
+  --surface:   #17171b;
+  --surface2:  #1e1e24;
+  --border:    rgba(255, 255, 255, 0.07);
+  --text:      #e8e8f0;
+  --muted:     rgba(255, 255, 255, 0.35);
+  --green:     #2dd88a;
+  --red:       #ff5a6e;
+  --accent:    #5c7cfa;
+
+  /* Login / Signup page */
+  --auth-bg:       #0c0c0e;
+  --auth-card:     rgba(255, 255, 255, 0.03);
+  --auth-border:   rgba(255, 255, 255, 0.08);
+  --auth-input-bg: rgba(255, 255, 255, 0.05);
+  --auth-text:     #fff;
+  --auth-muted:    rgba(255, 255, 255, 0.35);
+  --auth-placeholder: rgba(255, 255, 255, 0.2);
+}
+
+/* ─── Light theme ────────────────────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg:        #f4f4f8;
+  --surface:   #ffffff;
+  --surface2:  #f0f0f5;
+  --border:    rgba(0, 0, 0, 0.08);
+  --text:      #1a1a2e;
+  --muted:     rgba(0, 0, 0, 0.4);
+  --green:     #16a06a;
+  --red:       #e53e52;
+  --accent:    #4c6ef5;
+
+  /* Login / Signup page */
+  --auth-bg:       #f0f0f7;
+  --auth-card:     #ffffff;
+  --auth-border:   rgba(0, 0, 0, 0.08);
+  --auth-input-bg: #f7f7fb;
+  --auth-text:     #1a1a2e;
+  --auth-muted:    rgba(0, 0, 0, 0.4);
+  --auth-placeholder: rgba(0, 0, 0, 0.3);
 }
